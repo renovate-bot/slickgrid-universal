@@ -7,6 +7,7 @@ import {
   Formatter,
   Formatters,
   SlickDataView,
+  Aggregators,
 } from '@slickgrid-universal/common';
 import { ExcelExportService } from '@slickgrid-universal/excel-export';
 import { Slicker, SlickVanillaGridBundle } from '@slickgrid-universal/vanilla-bundle';
@@ -77,7 +78,9 @@ export class Example6 {
         // initialSort: {
         //   columnId: 'file',
         //   direction: 'DESC'
-        // }
+        // },
+        // @ts-ignore
+        aggregators: [new Aggregators.Sum('size')]
       },
       showCustomFooter: true,
 

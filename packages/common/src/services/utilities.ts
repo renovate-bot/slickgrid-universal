@@ -6,7 +6,7 @@ const moment = (moment_ as any)['default'] || moment_; // patch to fix rollup "m
 
 import { Constants } from '../constants';
 import { FieldType, OperatorString, OperatorType } from '../enums/index';
-import { EventSubscription, GridOption } from '../interfaces/index';
+import { Aggregator, EventSubscription, GridOption } from '../interfaces/index';
 import { Observable, RxJsFacade, Subject, Subscription } from './rxjsFacade';
 
 /**
@@ -125,16 +125,46 @@ export function unflattenParentChildArrayToTree<P, T extends P & { [childrenProp
  * @param {Object} options - options containing info like children & treeLevel property names
  * @param {Number} [treeLevel] - current tree level
  */
-export function addTreeLevelByMutation<T>(treeArray: T[], options: { childrenPropName: string; levelPropName: string; }, treeLevel = 0) {
+export function addTreeLevelByMutation<T>(treeArray: T[], options: { childrenPropName: string; levelPropName: string; aggregators?: Aggregator[]; }, treeLevel = 0, parent: T = null as any, sum = 0, aggregator?: Aggregator) {
   const childrenPropName = (options?.childrenPropName ?? Constants.treeDataProperties.CHILDREN_PROP) as keyof T;
 
   if (Array.isArray(treeArray)) {
+    let aggregatorField = '';
+    if (options?.aggregators && !aggregator && options.aggregators.length > 0) {
+      aggregator = aggregator ?? options.aggregators[0];
+      aggregatorField = `${aggregator.field}`;
+    }
+
     for (const item of treeArray) {
       if (item) {
         if (Array.isArray(item[childrenPropName]) && (item[childrenPropName] as unknown as Array<T>).length > 0) {
+          if (aggregator) {
+            // aggregator.init();
+            sum = 0;
+            (item as any)[aggregatorField as keyof T] = 0;
+          }
           treeLevel++;
-          addTreeLevelByMutation(item[childrenPropName] as unknown as Array<T>, options, treeLevel);
+          addTreeLevelByMutation(item[childrenPropName] as unknown as Array<T>, options, treeLevel, item, sum);
           treeLevel--;
+        }
+        if (aggregator && aggregatorField) {
+          // aggregator?.accumulate?.(item);
+          sum += (item as any).hasOwnProperty(aggregatorField) ? +(item as any)[aggregatorField] : 0;
+          if (parent) {
+            if (Array.isArray(item[childrenPropName]) && (item[childrenPropName] as unknown as Array<T>).length > 0) {
+              (parent as any)[aggregatorField] = (parent as any)[aggregatorField] ? (parent as any)[aggregatorField] + sum : sum;
+              // if (parent && !(parent as any).__treeTotals) {
+              //   (parent as any).__treeTotals = {};
+              // }
+              // (parent as any)[aggregatorField] ? aggregator?.accumulate?.(parent) : aggregator?.storeResult?.((parent as any).__treeTotals);
+            } else {
+              (parent as any)[aggregatorField] = sum;
+              // if (parent && !(parent as any).__treeTotals) {
+              //   (parent as any).__treeTotals = {};
+              // }
+              // aggregator?.storeResult?.((parent as any).__treeTotals);
+            }
+          }
         }
         (item as any)[options.levelPropName] = treeLevel;
       }
@@ -148,16 +178,17 @@ export function addTreeLevelByMutation<T>(treeArray: T[], options: { childrenPro
  * @param {Object} options - you can provide "childrenPropName" (defaults to "children")
  * @return {Array<Object>} output - Parent/Child array
  */
-export function flattenToParentChildArray<T>(treeArray: T[], options?: { parentPropName?: string; childrenPropName?: string; hasChildrenPropName?: string; identifierPropName?: string; shouldAddTreeLevelNumber?: boolean; levelPropName?: string; }) {
+export function flattenToParentChildArray<T>(treeArray: T[], options?: { parentPropName?: string; childrenPropName?: string; hasChildrenPropName?: string; identifierPropName?: string; shouldAddTreeLevelNumber?: boolean; levelPropName?: string; aggregators?: Aggregator[]; }) {
   const identifierPropName = (options?.identifierPropName ?? 'id') as keyof T & string;
   const childrenPropName = (options?.childrenPropName ?? Constants.treeDataProperties.CHILDREN_PROP) as keyof T & string;
   const hasChildrenPropName = (options?.hasChildrenPropName ?? Constants.treeDataProperties.HAS_CHILDREN_PROP) as keyof T & string;
   const parentPropName = (options?.parentPropName ?? Constants.treeDataProperties.PARENT_PROP) as keyof T & string;
   const levelPropName = options?.levelPropName ?? Constants.treeDataProperties.TREE_LEVEL_PROP;
+  const aggregators = options?.aggregators;
   type FlatParentChildArray = Omit<T, keyof typeof childrenPropName>;
 
   if (options?.shouldAddTreeLevelNumber) {
-    addTreeLevelByMutation(treeArray, { childrenPropName, levelPropName });
+    addTreeLevelByMutation(treeArray, { childrenPropName, levelPropName, aggregators });
   }
 
   const flat = flatten(
