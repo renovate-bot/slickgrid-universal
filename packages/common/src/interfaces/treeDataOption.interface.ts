@@ -1,5 +1,6 @@
 // import { Aggregator } from './aggregator.interface';
 import { SortDirection, SortDirectionString } from '../enums/index';
+import { Aggregator } from './aggregator.interface';
 import { Formatter } from './formatter.interface';
 
 export interface TreeDataOption {
@@ -7,8 +8,7 @@ export interface TreeDataOption {
   columnId: string;
 
   /** Grouping Aggregators array */
-  // NOT YET IMPLEMENTED
-  // aggregators?: Aggregator[];
+  aggregators?: Aggregator[];
 
   /** Optionally define the initial sort column and direction */
   initialSort?: {
