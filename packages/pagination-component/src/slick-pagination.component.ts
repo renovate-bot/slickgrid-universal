@@ -5,7 +5,6 @@ import {
   Locale,
   PaginationService,
   PubSubService,
-  sanitizeTextByAvailableSanitizer,
   ServicePagination,
   SharedService,
   SlickGrid,
@@ -18,7 +17,6 @@ export class SlickPaginationComponent {
   protected _bindingHelper: BindingHelper;
   protected _paginationElement!: HTMLDivElement;
   protected _enableTranslate = false;
-  protected _locales: Locale;
   protected _subscriptions: Subscription[] = [];
   currentPagination: ServicePagination;
   firstButtonClasses = '';
@@ -38,17 +36,16 @@ export class SlickPaginationComponent {
 
     this.currentPagination = this.paginationService.getFullPagination();
     this._enableTranslate = this.gridOptions?.enableTranslate ?? false;
-    this._locales = this.gridOptions?.locales ?? Constants.locales;
 
     if (this._enableTranslate && (!this.translaterService || !this.translaterService.translate)) {
       throw new Error('[Slickgrid-Universal] requires a Translate Service to be installed and configured when the grid option "enableTranslate" is enabled.');
     }
-    this.translatePaginationTexts(this._locales);
+    this.translatePaginationTexts();
 
     if (this._enableTranslate && this.pubSubService?.subscribe) {
       const translateEventName = this.translaterService?.eventName ?? 'onLanguageChange';
       this._subscriptions.push(
-        this.pubSubService.subscribe(translateEventName, () => this.translatePaginationTexts(this._locales))
+        this.pubSubService.subscribe(translateEventName, () => this.translatePaginationTexts())
       );
     }
 
@@ -110,6 +107,11 @@ export class SlickPaginationComponent {
     return this.grid?.getUID() ?? '';
   }
 
+  get locales(): Locale {
+    // get locales provided by user in main file or else use default English locales via the Constants
+    return this.gridOptions?.locales ?? Constants.locales;
+  }
+
   get totalItems() {
     return this.paginationService.totalItems;
   }
@@ -131,23 +133,35 @@ export class SlickPaginationComponent {
   }
 
   renderPagination(gridParentContainerElm: HTMLElement) {
-    const paginationTemplate = require('./slick-pagination.component.html');
+    const paginationElm = this.createPaginationContainer();
+    const divNavContainerElm = document.createElement('div');
+    divNavContainerElm.className = 'slick-pagination-nav';
+    const leftNavigationElm = this.createPageNavigation('Page navigation', [
+      { liClass: 'page-item seek-first', aClass: 'page-link icon-seek-first', ariaLabel: 'First Page' },
+      { liClass: 'page-item seek-prev', aClass: 'page-link icon-seek-prev', ariaLabel: 'Previous Page' },
+    ]);
+    const pageNumberSectionElm = this.createPageNumberSection();
+    const rightNavigationElm = this.createPageNavigation('Page navigation', [
+      { liClass: 'page-item seek-next', aClass: 'page-link icon-seek-next', ariaLabel: 'Next Page' },
+      { liClass: 'page-item seek-end', aClass: 'page-link icon-seek-end', ariaLabel: 'Last Page' },
+    ]);
+    paginationElm.appendChild(divNavContainerElm);
+    divNavContainerElm.appendChild(leftNavigationElm);
+    divNavContainerElm.appendChild(pageNumberSectionElm);
+    divNavContainerElm.appendChild(rightNavigationElm);
 
-    if (paginationTemplate) {
-      const temp = document.createElement('div');
-      temp.innerHTML = sanitizeTextByAvailableSanitizer(this.gridOptions, paginationTemplate, { ALLOW_DATA_ATTR: true } as DOMPurify.Config);
-      this._paginationElement = temp.firstChild as HTMLDivElement;
-      this._paginationElement.classList.add(this.gridUid, 'pager');
-      this._paginationElement.style.width = '100%';
-
-      if (gridParentContainerElm?.appendChild && this._paginationElement) {
-        gridParentContainerElm.appendChild(this._paginationElement);
-        this.renderPageSizes();
-        this.addBindings();
-        this.addEventListeners();
-        this.updatePageButtonsUsability();
-      }
+    const paginationSettingsElm = this.createPaginationSettingsSection();
+    paginationElm.appendChild(divNavContainerElm);
+    paginationElm.appendChild(paginationSettingsElm);
+    this._paginationElement.appendChild(paginationElm);
+    if (gridParentContainerElm?.appendChild && this._paginationElement) {
+      gridParentContainerElm.appendChild(this._paginationElement);
     }
+
+    this.renderPageSizes();
+    this.addBindings();
+    this.addEventListeners();
+    this.updatePageButtonsUsability();
   }
 
   /** Render and fill the Page Sizes <select> element */
@@ -220,30 +234,150 @@ export class SlickPaginationComponent {
     this.paginationService.goToPageNumber(+pageNumber);
   }
 
-  // --
-  // protected functions
-  // --------------------
-
-  protected updatePageButtonsUsability() {
-    this.firstButtonClasses = this.isLeftPaginationDisabled ? 'page-item seek-first disabled' : 'page-item seek-first';
-    this.prevButtonClasses = this.isLeftPaginationDisabled ? 'page-item seek-prev disabled' : 'page-item seek-prev';
-    this.lastButtonClasses = this.isRightPaginationDisabled ? 'page-item seek-end disabled' : 'page-item seek-end';
-    this.nextButtonClasses = this.isRightPaginationDisabled ? 'page-item seek-next disabled' : 'page-item seek-next';
-  }
-
   /** Translate all the texts shown in the UI, use ngx-translate service when available or custom locales when service is null */
-  protected translatePaginationTexts(locales: Locale) {
+  translatePaginationTexts() {
     if (this._enableTranslate && this.translaterService?.translate) {
       const translationPrefix = getTranslationPrefix(this.gridOptions);
       this.textItemsPerPage = this.translaterService.translate(`${translationPrefix}ITEMS_PER_PAGE`);
       this.textItems = this.translaterService.translate(`${translationPrefix}ITEMS`);
       this.textOf = this.translaterService.translate(`${translationPrefix}OF`);
       this.textPage = this.translaterService.translate(`${translationPrefix}PAGE`);
-    } else if (locales) {
-      this.textItemsPerPage = locales.TEXT_ITEMS_PER_PAGE || 'TEXT_ITEMS_PER_PAGE';
-      this.textItems = locales.TEXT_ITEMS || 'TEXT_ITEMS';
-      this.textOf = locales.TEXT_OF || 'TEXT_OF';
-      this.textPage = locales.TEXT_PAGE || 'TEXT_PAGE';
+    } else if (this.locales) {
+      this.textItemsPerPage = this.locales.TEXT_ITEMS_PER_PAGE || 'TEXT_ITEMS_PER_PAGE';
+      this.textItems = this.locales.TEXT_ITEMS || 'TEXT_ITEMS';
+      this.textOf = this.locales.TEXT_OF || 'TEXT_OF';
+      this.textPage = this.locales.TEXT_PAGE || 'TEXT_PAGE';
     }
+  }
+
+  // --
+  // protected functions
+  // --------------------
+
+  /** Create the Pagination Container */
+  protected createPaginationContainer() {
+    const paginationContainerElm = document.createElement('div');
+    paginationContainerElm.className = `slick-pagination-container ${this.gridUid} pager`;
+    paginationContainerElm.id = 'pager';
+    paginationContainerElm.style.width = '100%';
+
+    const paginationElm = document.createElement('div');
+    paginationElm.className = 'slick-pagination';
+    paginationContainerElm.appendChild(paginationElm);
+    this._paginationElement = paginationContainerElm; // keep internal ref
+
+    return paginationElm;
+  }
+
+  protected createPageNavigation(navAriaLabel: string, liElements: Array<{ liClass: string, aClass: string, ariaLabel: string }>) {
+    const navElm = document.createElement('nav');
+    navElm.ariaLabel = navAriaLabel;
+    const ulElm = document.createElement('ul');
+    ulElm.className = 'pagination';
+
+    for (const li of liElements) {
+      const liElm = document.createElement('li');
+      liElm.className = li.liClass;
+      const aElm = document.createElement('a');
+      aElm.className = li.aClass;
+      aElm.setAttribute('aria-label', li.ariaLabel);
+      liElm.appendChild(aElm);
+      ulElm.appendChild(liElm);
+    }
+    navElm.appendChild(ulElm);
+
+    return navElm;
+  }
+
+  protected createPageNumberSection() {
+    const divElm = document.createElement('div');
+    divElm.className = 'slick-page-number';
+    const spanTextPageElm = document.createElement('span');
+    spanTextPageElm.className = 'text-page';
+    spanTextPageElm.textContent = 'Page';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control page-number';
+    input.dataset.test = 'page-number-input';
+    input.setAttribute('aria-label', 'Page Number');
+    input.value = '1';
+    input.size = 1;
+    const spanTextOfElm = document.createElement('span');
+    spanTextOfElm.className = 'text-of';
+    spanTextOfElm.textContent = 'of';
+    const spanPageCountElm = document.createElement('span');
+    spanPageCountElm.className = 'page-count';
+    spanPageCountElm.dataset.test = 'page-count';
+    divElm.appendChild(spanTextPageElm);
+    divElm.appendChild(document.createTextNode(' '));
+    divElm.appendChild(input);
+    divElm.appendChild(document.createTextNode(' '));
+    divElm.appendChild(spanTextOfElm);
+    divElm.appendChild(document.createTextNode(' '));
+    divElm.appendChild(spanPageCountElm);
+
+    return divElm;
+  }
+
+  protected createPaginationSettingsSection() {
+    const spanContainerElm = document.createElement('span');
+    spanContainerElm.className = 'slick-pagination-settings';
+    const selectElm = document.createElement('select');
+    selectElm.id = 'items-per-page-label';
+    selectElm.className = 'items-per-page';
+    selectElm.setAttribute('aria-label', 'Items per Page Select');
+    const spanItemPerPageElm = document.createElement('span');
+    spanItemPerPageElm.className = 'text-item-per-page';
+    spanItemPerPageElm.textContent = 'items per page';
+    const spanPaginationCount = document.createElement('span');
+    spanPaginationCount.className = 'slick-pagination-count';
+    const spanInfoFromToElm = document.createElement('span');
+    spanInfoFromToElm.className = 'page-info-from-to';
+    const spanItemFromElm = document.createElement('span');
+    spanItemFromElm.className = 'item-from';
+    spanItemFromElm.dataset.test = 'item-from';
+    spanItemFromElm.setAttribute('aria-label', 'Page Item From');
+    const spanItemToElm = document.createElement('span');
+    spanItemToElm.className = 'item-to';
+    spanItemToElm.dataset.test = 'item-to';
+    spanItemToElm.setAttribute('aria-label', 'Page Item To');
+    const spanOfElm = document.createElement('span');
+    spanOfElm.className = 'text-of';
+    spanOfElm.textContent = 'of';
+    const spanInfoTotalElm = document.createElement('span');
+    spanInfoTotalElm.className = 'page-info-total-items';
+    const spanTotalItem = document.createElement('span');
+    spanTotalItem.className = 'total-items';
+    spanTotalItem.dataset.test = 'total-items';
+    const spanTextItemsElm = document.createElement('span');
+    spanTextItemsElm.className = 'text-items';
+    spanTextItemsElm.textContent = 'items';
+
+    spanContainerElm.appendChild(selectElm);
+    spanContainerElm.appendChild(document.createTextNode(' '));
+    spanContainerElm.appendChild(spanItemPerPageElm);
+    spanContainerElm.appendChild(document.createTextNode(', '));
+    spanInfoFromToElm.appendChild(spanItemFromElm);
+    spanInfoFromToElm.appendChild(document.createTextNode('-'));
+    spanInfoFromToElm.appendChild(spanItemToElm);
+    spanInfoFromToElm.appendChild(document.createTextNode(' '));
+    spanInfoFromToElm.appendChild(spanOfElm);
+    spanInfoFromToElm.appendChild(document.createTextNode(' '));
+    spanPaginationCount.appendChild(spanInfoFromToElm);
+    spanContainerElm.appendChild(spanPaginationCount);
+    spanInfoTotalElm.appendChild(spanTotalItem);
+    spanInfoTotalElm.appendChild(document.createTextNode(' '));
+    spanInfoTotalElm.appendChild(spanTextItemsElm);
+    spanInfoTotalElm.appendChild(document.createTextNode(' '));
+    spanPaginationCount.appendChild(spanInfoTotalElm);
+
+    return spanContainerElm;
+  }
+
+  protected updatePageButtonsUsability() {
+    this.firstButtonClasses = this.isLeftPaginationDisabled ? 'page-item seek-first disabled' : 'page-item seek-first';
+    this.prevButtonClasses = this.isLeftPaginationDisabled ? 'page-item seek-prev disabled' : 'page-item seek-prev';
+    this.lastButtonClasses = this.isRightPaginationDisabled ? 'page-item seek-end disabled' : 'page-item seek-end';
+    this.nextButtonClasses = this.isRightPaginationDisabled ? 'page-item seek-next disabled' : 'page-item seek-next';
   }
 }

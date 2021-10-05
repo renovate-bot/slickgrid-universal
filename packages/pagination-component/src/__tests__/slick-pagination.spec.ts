@@ -6,7 +6,7 @@ import { TranslateServiceStub } from '../../../../test/translateServiceStub';
 import { SlickPaginationComponent } from '../slick-pagination.component';
 
 function removeExtraSpaces(text: string) {
-  return `${text}`.replace(/\s{2,}/g, '');
+  return `${text}`.replace(/\r\n\s{2,}/g, '');
 }
 
 const gridStub = {
@@ -96,8 +96,8 @@ describe('Slick-Pagination Component', () => {
       const itemsPerPage = document.querySelector('.items-per-page') as HTMLSelectElement;
 
       expect(translateService.getCurrentLanguage()).toBe('en');
-      expect(removeExtraSpaces(pageInfoFromTo.innerHTML)).toBe('<span aria-label="Page Item From" class="item-from" data-test="item-from">10</span>-<span aria-label="Page Item To" class="item-to" data-test="item-to">15</span><span class="text-of">of</span>');
-      expect(removeExtraSpaces(pageInfoTotalItems.innerHTML)).toBe('<span class="total-items" data-test="total-items">95</span><span class="text-items">items</span>');
+      expect(removeExtraSpaces(pageInfoFromTo.innerHTML)).toBe('<span class="item-from" data-test="item-from" aria-label="Page Item From">10</span>-<span class="item-to" data-test="item-to" aria-label="Page Item To">15</span> <span class="text-of">of</span> ');
+      expect(removeExtraSpaces(pageInfoTotalItems.innerHTML)).toBe('<span class="total-items" data-test="total-items">95</span> <span class="text-items">items</span> ');
       expect(itemsPerPage.selectedOptions[0].value).toBe('5');
     });
 
@@ -254,6 +254,12 @@ describe('with different i18n locale', () => {
     component.renderPagination(div);
   });
 
+  it('should throw an error when enabling translate without a Translate Service', () => {
+    mockGridOptions.enableTranslate = true;
+    expect(() => new SlickPaginationComponent(paginationServiceStub, eventPubSubService, sharedService, null))
+      .toThrow('[Slickgrid-Universal] requires a Translate Service to be installed and configured when the grid option "enableTranslate" is enabled.');
+  });
+
   it('should create a the Slick-Pagination component in the DOM and expect different locale when changed', (done) => {
     translateService.use('fr');
     eventPubSubService.publish('onLanguageChange', 'fr');
@@ -262,8 +268,8 @@ describe('with different i18n locale', () => {
       const pageInfoFromTo = document.querySelector('.page-info-from-to') as HTMLSpanElement;
       const pageInfoTotalItems = document.querySelector('.page-info-total-items') as HTMLSpanElement;
       expect(translateService.getCurrentLanguage()).toBe('fr');
-      expect(removeExtraSpaces(pageInfoFromTo.innerHTML)).toBe(`<span aria-label="Page Item From" class="item-from" data-test="item-from">10</span>-<span aria-label="Page Item To" class="item-to" data-test="item-to">15</span><span class="text-of">de</span>`);
-      expect(removeExtraSpaces(pageInfoTotalItems.innerHTML)).toBe(`<span class="total-items" data-test="total-items">95</span><span class="text-items">éléments</span>`);
+      expect(removeExtraSpaces(pageInfoFromTo.innerHTML)).toBe(`<span class="item-from" data-test="item-from" aria-label="Page Item From">10</span>-<span class="item-to" data-test="item-to" aria-label="Page Item To">15</span> <span class="text-of">de</span> `);
+      expect(removeExtraSpaces(pageInfoTotalItems.innerHTML)).toBe(`<span class="total-items" data-test="total-items">95</span> <span class="text-items">éléments</span> `);
       done();
     }, 50);
   });

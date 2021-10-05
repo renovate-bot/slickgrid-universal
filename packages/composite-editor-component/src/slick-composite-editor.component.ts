@@ -676,13 +676,12 @@ export class SlickCompositeEditorComponent implements ExternalResource {
 
     const resetButtonElm = document.createElement('button');
     resetButtonElm.type = 'button';
-    resetButtonElm.textContent = ' Reset Form';
     resetButtonElm.className = 'btn btn-sm reset-form';
 
     const resetIconSpanElm = document.createElement('span');
     resetIconSpanElm.className = this._options?.resetFormButtonIconCssClass ?? '';
-
-    resetButtonElm.prepend(resetIconSpanElm);
+    resetButtonElm.appendChild(resetIconSpanElm);
+    resetButtonElm.appendChild(document.createTextNode(' Reset Form'));
     resetButtonContainerElm.appendChild(resetButtonElm);
 
     return resetButtonContainerElm;
@@ -906,7 +905,7 @@ export class SlickCompositeEditorComponent implements ExternalResource {
     this._itemDataContext = editor?.dataContext ?? {}; // keep reference of the item data context
 
     // add extra css styling to the composite editor input(s) that got modified
-    const editorElm = document.querySelector(`[data-editorid=${columnId}]`);
+    const editorElm = document.querySelector(`.slick-editor-modal [data-editorid=${columnId}]`);
     if (editorElm?.classList) {
       if (isEditorValueTouched) {
         editorElm.classList.add('modified');
